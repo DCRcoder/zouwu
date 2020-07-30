@@ -1,5 +1,7 @@
 package zouwu
 
+import "path"
+
 // MIME types that are commonly used
 const (
 	MIMETextXML               = "text/xml"
@@ -19,3 +21,23 @@ const (
 	MIMEApplicationJSONCharsetUTF8       = "application/json; charset=utf-8"
 	MIMEApplicationJavaScriptCharsetUTF8 = "application/javascript; charset=utf-8"
 )
+
+func lastChar(str string) uint8 {
+	if str == "" {
+		panic("The length of the string can't be 0")
+	}
+	return str[len(str)-1]
+}
+
+func joinPaths(absolutePath, relativePath string) string {
+	if relativePath == "" {
+		return absolutePath
+	}
+
+	finalPath := path.Join(absolutePath, relativePath)
+	appendSlash := lastChar(relativePath) == '/' && lastChar(finalPath) != '/'
+	if appendSlash {
+		return finalPath + "/"
+	}
+	return finalPath
+}

@@ -290,3 +290,12 @@ func (c *Context) JSON(data interface{}) error {
 	c.Ctx.Response.SetBodyRaw(raw)
 	return nil
 }
+
+// Bytes writes some data into the body stream and updates the HTTP code.
+func (c *Context) Bytes(code int, contentType string, data []byte) {
+	c.Ctx.Response.Header.SetContentType(MIMETextPlain)
+	c.Ctx.Response.SetBodyRaw(data)
+	c.Status(code)
+}
+
+// todo string html
