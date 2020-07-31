@@ -1,6 +1,7 @@
 package zouwu
 
 import (
+	"fmt"
 	"net"
 	"net/http"
 	"regexp"
@@ -13,8 +14,9 @@ import (
 )
 
 var (
-	default405Body = []byte("405 method not allowed")
-	default404Body = []byte("404 page not found")
+	_              IRouter = &Engine{}
+	default405Body         = []byte("405 method not allowed")
+	default404Body         = []byte("404 page not found")
 )
 
 // HandlerFunc http request handler function.
@@ -116,6 +118,7 @@ func (engine *Engine) addRoute(method, path string, handlers ...HandlerFunc) {
 		c.method = method
 		c.RoutePath = path
 	}
+	fmt.Printf("add method %s path: %s\n", method, path)
 	handlers = append([]HandlerFunc{prelude}, handlers...)
 	root.addRoute(path, handlers)
 }
@@ -133,7 +136,7 @@ func (engine *Engine) Start() error {
 		return errors.Wrapf(err, "[zouwu Engine]: listen tcp: %s", conf.Addr)
 	}
 
-	log.Info("[zouwu Engine]: start http listen addr: %s", l.Addr().String())
+	log.Infof("[zouwu Engine]: start http listen addr: %s", l.Addr().String())
 	server := &fasthttp.Server{
 		ReadTimeout:  time.Duration(conf.ReadTimeout),
 		WriteTimeout: time.Duration(conf.WriteTimeout),
@@ -145,14 +148,60 @@ func (engine *Engine) Start() error {
 		}
 		panic(errors.Wrapf(err, "[zouwu Engine]: engine.ListenServer(%+v, %+v)", server, l))
 	}
-
 	return nil
+}
+
+func (engine *Engine) handler(rctx *fasthttp.RequestCtx) {
+	fmt.Println(rctx)
+	ctx := engine.pool.Get().(*Context)
+	ctx.reset()
+	ctx.engine = engine
+	ctx.Ctx = rctx
+	engine.prepareHanlder(ctx)
+	ctx.Next()
+	engine.pool.Put(ctx)
+}
+
+func (engine *Engine) prepareHanlder(ctx *Context) {
+	method := string(ctx.Ctx.Method())
+	rPath := string(ctx.Ctx.Request.URI().Path())
+	t := engine.trees
+	fmt.Println(t)
+	fmt.Println(rPath)
+	for i, tl := 0, len(t); i < tl; i++ {
+		if t[i].method != method {
+			continue
+		}
+		root := t[i].root
+		// Find route in tree
+		handlers, params, _ := root.getValue(rPath, ctx.Params, false)
+		if handlers != nil {
+			ctx.handlers = handlers
+			ctx.Params = params
+			return
+		}
+		break
+	}
+
+	if engine.HandleMethodNotAllowed {
+		for _, tree := range engine.trees {
+			if tree.method == method {
+				continue
+			}
+			if handlers, _, _ := tree.root.getValue(rPath, nil, false); handlers != nil {
+				ctx.handlers = engine.allNoMethod
+				return
+			}
+		}
+	}
+	engine.Handlers = engine.allNoRoute
 }
 
 // RunServer will serve and start listening HTTP requests by given server and listener.
 // Note: this method will block the calling goroutine indefinitely unless an error happens.
 func (engine *Engine) RunServer(server *fasthttp.Server, l net.Listener) (err error) {
 	engine.server = server
+	engine.server.Handler = engine.handler
 	if err = server.Serve(l); err != nil {
 		err = errors.Wrapf(err, "listen server: %+v/%+v", server, l)
 		return
@@ -181,7 +230,7 @@ func NewServer(conf *ServerConfig) *Engine {
 			basePath: "/",
 			root:     true,
 		},
-		address:                "127.0.0.1:8080",
+		address:                conf.Addr,
 		trees:                  make(methodTrees, 0, 9),
 		metastore:              make(map[string]map[string]interface{}),
 		methodConfigs:          make(map[string]*MethodConfig),
@@ -196,11 +245,11 @@ func NewServer(conf *ServerConfig) *Engine {
 	}
 	engine.RouterGroup.engine = engine
 	engine.NoRoute(func(c *Context) {
-		c.Bytes(404, "text/plain", default404Body)
+		c.Bytes(404, MIMETextHTML, default404Body)
 		c.Abort()
 	})
 	engine.NoMethod(func(c *Context) {
-		c.Bytes(405, "text/plain", default405Body)
+		c.Bytes(405, MIMETextHTML, default405Body)
 		c.Abort()
 	})
 	return engine
