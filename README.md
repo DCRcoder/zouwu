@@ -1,7 +1,7 @@
 # ZouWu（驺吾）
 注: 驺吾《山海经·海内北经》：“ 林氏国 ，有珍兽，大若虎，五采毕具，尾长于身，名曰驺吾，乘之日行千里。”
 
-zouwu is a experimental web framework built on top of [fasthttp](https://github.com/valyala/fasthttp). 
+ZouWu is a experimental web framework built on top of [fasthttp](https://github.com/valyala/fasthttp). 
 the project base on [kratos](https://github.com/go-kratos/kratos) and [fiber](https://github.com/gofiber/fiber)
 
 
