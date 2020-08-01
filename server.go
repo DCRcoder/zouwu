@@ -42,6 +42,9 @@ type ServerConfig struct {
 	WriteTimeout time.Duration
 }
 
+// ErrHandler handler request raise err
+type ErrHandler func(ctx *Context, err error)
+
 // Engine service engine
 type Engine struct {
 	RouterGroup
@@ -79,7 +82,7 @@ type Engine struct {
 
 	pool sync.Pool
 
-	errorHandler func(ctx *Context, err error)
+	errorHandler ErrHandler
 }
 
 // NewServer returns a new blank Engine instance without any middleware attached.
@@ -316,4 +319,9 @@ func (engine *Engine) Use(middleware ...HandlerFunc) IRoutes {
 	engine.rebuild404Handlers()
 	engine.rebuild405Handlers()
 	return engine
+}
+
+// SetErrHanlder set customer ErrHandler
+func (engine *Engine) SetErrHanlder(f ErrHandler) {
+	engine.errorHandler = f
 }
