@@ -414,6 +414,7 @@ func (c *Context) Errors(err error) error {
 	} else {
 		defaultErrorHandler(c, err)
 	}
+	c.Abort()
 	return nil
 }
 
@@ -427,6 +428,13 @@ func (c *Context) JSON(data interface{}) error {
 	// Set http headers
 	c.Ctx.Response.Header.SetContentType(MIMEApplicationJSON)
 	c.Ctx.Response.SetBodyRaw(raw)
+	return nil
+}
+
+// JSON render string
+func (c *Context) String(data string) error {
+	c.Ctx.Response.Header.SetContentType(MIMETextPlainCharsetUTF8)
+	c.Ctx.Response.SetBodyString(data)
 	return nil
 }
 
