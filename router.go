@@ -10,8 +10,7 @@ type IRouter interface {
 
 // IRoutes http router interface.
 type IRoutes interface {
-	UseFunc(...HandlerFunc) IRoutes
-	Use(...Handler) IRoutes
+	Use(...HandlerFunc) IRoutes
 
 	Handle(string, string, ...HandlerFunc) IRoutes
 	HEAD(string, ...HandlerFunc) IRoutes
@@ -41,9 +40,9 @@ func (group *RouterGroup) returnObj() IRoutes {
 }
 
 // Use adds middleware to the group, see example code in doc.
-func (group *RouterGroup) Use(middleware ...Handler) IRoutes {
+func (group *RouterGroup) Use(middleware ...HandlerFunc) IRoutes {
 	for _, m := range middleware {
-		group.Handlers = append(group.Handlers, m.ServeHTTP)
+		group.Handlers = append(group.Handlers, m)
 	}
 	return group.returnObj()
 }

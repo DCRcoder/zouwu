@@ -6,6 +6,7 @@ import (
 	"time"
 
 	jsoniter "github.com/json-iterator/go"
+	"github.com/spf13/cast"
 	"github.com/valyala/fasthttp"
 )
 
@@ -27,7 +28,6 @@ type Context struct {
 	index    int8
 	handlers []HandlerFunc
 
-	// 请求上下文的 kv 存储
 	Keys map[string]interface{}
 	mu   sync.RWMutex
 
@@ -39,6 +39,7 @@ type Context struct {
 	RoutePath string
 
 	Params Params
+	err    error
 }
 
 /************************************/
@@ -52,6 +53,7 @@ func (c *Context) reset() {
 	c.Error = nil
 	c.method = ""
 	c.RoutePath = ""
+	c.err = nil
 	c.Params = c.Params[0:0]
 }
 
@@ -62,12 +64,16 @@ func (c *Context) reset() {
 // Next should be used only inside middleware.
 // It executes the pending handlers in the chain inside the calling handler.
 // See example in godoc.
-func (c *Context) Next() {
+func (c *Context) Next() error {
 	c.index++
 	for c.index < int8(len(c.handlers)) {
-		c.handlers[c.index](c)
+		err := c.handlers[c.index](c)
+		if err != nil {
+			return c.Errors(err)
+		}
 		c.index++
 	}
+	return nil
 }
 
 // Abort prevents pending handlers from being called. Note that this will not stop the current handler.
@@ -213,6 +219,56 @@ func (c *Context) URLParam(key string) string {
 	return c.Params.ByName(key)
 }
 
+// URLParamInt64 return param as int64
+func (c *Context) URLParamInt64(key string) int64 {
+	return cast.ToInt64(c.Params.ByName(key))
+}
+
+// URLParamUint64 return param as uint64
+func (c *Context) URLParamUint64(key string) uint64 {
+	return cast.ToUint64(c.Params.ByName(key))
+}
+
+// URLParamInt32 return param as int32
+func (c *Context) URLParamInt32(key string) int32 {
+	return cast.ToInt32(c.Params.ByName(key))
+}
+
+// URLParamUint32 return param as uint32
+func (c *Context) URLParamUint32(key string) uint32 {
+	return cast.ToUint32(c.Params.ByName(key))
+}
+
+// URLParamInt16 return param as int16
+func (c *Context) URLParamInt16(key string) int16 {
+	return cast.ToInt16(c.Params.ByName(key))
+}
+
+// URLParamUint16 return param as uint16
+func (c *Context) URLParamUint16(key string) uint16 {
+	return cast.ToUint16(c.Params.ByName(key))
+}
+
+// URLParamInt8 return param as int8
+func (c *Context) URLParamInt8(key string) int8 {
+	return cast.ToInt8(c.Params.ByName(key))
+}
+
+// URLParamUint8 return param as uint8
+func (c *Context) URLParamUint8(key string) uint8 {
+	return cast.ToUint8(c.Params.ByName(key))
+}
+
+// URLParamInt return param as int
+func (c *Context) URLParamInt(key string) int {
+	return cast.ToInt(c.Params.ByName(key))
+}
+
+// URLParamUint return param as int
+func (c *Context) URLParamUint(key string) uint {
+	return cast.ToUint(c.Params.ByName(key))
+}
+
 // Query returns the keyed url query value if it exists,
 // otherwise it returns an empty string `("")`.
 // It is shortcut for `c.Request.URL.Query().Get(key)`
@@ -240,6 +296,96 @@ func (c *Context) DefaultQuery(key, defaultValue string) string {
 	return defaultValue
 }
 
+// DefaultQueryInt64 returns keyed url query value as int64 it it existed,
+// otherwise it returns the specified defaultValue
+func (c *Context) DefaultQueryInt64(key string, defaultValue int64) int64 {
+	if value, ok := c.GetQuery(key); ok {
+		return cast.ToInt64(value)
+	}
+	return defaultValue
+}
+
+// DefaultQueryUint64 returns keyed url query value as uint64 it it existed,
+// otherwise it returns the specified defaultValue
+func (c *Context) DefaultQueryUint64(key string, defaultValue uint64) uint64 {
+	if value, ok := c.GetQuery(key); ok {
+		return cast.ToUint64(value)
+	}
+	return defaultValue
+}
+
+// DefaultQueryInt32 returns keyed url query value as int32 it it existed,
+// otherwise it returns the specified defaultValue
+func (c *Context) DefaultQueryInt32(key string, defaultValue int32) int32 {
+	if value, ok := c.GetQuery(key); ok {
+		return cast.ToInt32(value)
+	}
+	return defaultValue
+}
+
+// DefaultQueryUint32 returns keyed url query value as uint32 it it existed,
+// otherwise it returns the specified defaultValue
+func (c *Context) DefaultQueryUint32(key string, defaultValue uint32) uint32 {
+	if value, ok := c.GetQuery(key); ok {
+		return cast.ToUint32(value)
+	}
+	return defaultValue
+}
+
+// DefaultQueryInt16 returns keyed url query value as int16 it it existed,
+// otherwise it returns the specified defaultValue
+func (c *Context) DefaultQueryInt16(key string, defaultValue int16) int16 {
+	if value, ok := c.GetQuery(key); ok {
+		return cast.ToInt16(value)
+	}
+	return defaultValue
+}
+
+// DefaultQueryUint16 returns keyed url query value as uint16 it it existed,
+// otherwise it returns the specified defaultValue
+func (c *Context) DefaultQueryUint16(key string, defaultValue uint16) uint16 {
+	if value, ok := c.GetQuery(key); ok {
+		return cast.ToUint16(value)
+	}
+	return defaultValue
+}
+
+// DefaultQueryInt8 returns keyed url query value as int8 it it existed,
+// otherwise it returns the specified defaultValue
+func (c *Context) DefaultQueryInt8(key string, defaultValue int8) int8 {
+	if value, ok := c.GetQuery(key); ok {
+		return cast.ToInt8(value)
+	}
+	return defaultValue
+}
+
+// DefaultQueryUint8 returns keyed url query value as uint8 it it existed,
+// otherwise it returns the specified defaultValue
+func (c *Context) DefaultQueryUint8(key string, defaultValue uint8) uint8 {
+	if value, ok := c.GetQuery(key); ok {
+		return cast.ToUint8(value)
+	}
+	return defaultValue
+}
+
+// DefaultQueryInt returns keyed url query value as int8 it it existed,
+// otherwise it returns the specified defaultValue
+func (c *Context) DefaultQueryInt(key string, defaultValue int) int {
+	if value, ok := c.GetQuery(key); ok {
+		return cast.ToInt(value)
+	}
+	return defaultValue
+}
+
+// DefaultQueryUint returns keyed url query value as int8 it it existed,
+// otherwise it returns the specified defaultValue
+func (c *Context) DefaultQueryUint(key string, defaultValue uint) uint {
+	if value, ok := c.GetQuery(key); ok {
+		return cast.ToUint(value)
+	}
+	return defaultValue
+}
+
 // GetQuery is like Query(), it returns the keyed url query value
 // if it exists `(value, true)` (even when the value is an empty string),
 // otherwise it returns `("", false)`.
@@ -256,26 +402,19 @@ func (c *Context) GetQuery(key string) (string, bool) {
 	return "", false
 }
 
-/************************************/
-/******** RESPONSE RENDERING ********/
-/************************************/
-
-// bodyAllowedForStatus is a copy of http.bodyAllowedForStatus non-exported function.
-func bodyAllowedForStatus(status int) bool {
-	switch {
-	case status >= 100 && status <= 199:
-		return false
-	case status == 204:
-		return false
-	case status == 304:
-		return false
-	}
-	return true
-}
-
 // Status sets the HTTP response code.
 func (c *Context) Status(code int) {
 	c.Ctx.SetStatusCode(code)
+}
+
+// Errors render error
+func (c *Context) Errors(err error) error {
+	if c.engine.errorHandler != nil {
+		c.engine.errorHandler(c, err)
+	} else {
+		defaultErrorHandler(c, err)
+	}
+	return nil
 }
 
 // JSON render json
@@ -297,5 +436,3 @@ func (c *Context) Bytes(code int, contentType string, data []byte) {
 	c.Ctx.Response.SetBodyRaw(data)
 	c.Status(code)
 }
-
-// todo string html

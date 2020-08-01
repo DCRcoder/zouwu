@@ -1,19 +1,15 @@
 package main
 
 import (
-	"fmt"
-	"time"
+	"errors"
 
 	"github.com/DCRcoder/zouwu"
 )
 
 func main() {
-	e := zouwu.NewServer(&zouwu.ServerConfig{
-		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 5 * time.Second,
-		Timeout:      5 * time.Second,
-		Addr:         "127.0.0.1:8888",
+	e := zouwu.NewServer()
+	e.GET("/hello/:id", func(ctx *zouwu.Context) error {
+		return errors.New("fuck")
 	})
-	e.GET("/hello", func(ctx *zouwu.Context) { fmt.Println("aaaa") })
-	e.Start()
+	e.Run(":7777")
 }

@@ -1,7 +1,6 @@
 package zouwu
 
 import (
-	"fmt"
 	"net"
 	"net/http"
 	"regexp"
@@ -20,16 +19,19 @@ var (
 )
 
 // HandlerFunc http request handler function.
-type HandlerFunc func(ctx *Context)
+type HandlerFunc func(ctx *Context) error
 
-// Handler responds to an HTTP request.
-type Handler interface {
-	ServeHTTP(c *Context)
-}
-
-// ServeHTTP calls f(ctx).
-func (f HandlerFunc) ServeHTTP(c *Context) {
-	f(c)
+var defaultErrorHandler = func(ctx *Context, err error) {
+	switch e := err.(type) {
+	case *Error:
+		ctx.Set(HeaderContentType, MIMETextPlainCharsetUTF8)
+		ctx.Ctx.Response.SetBodyString(e.Error())
+		ctx.Status(e.Code)
+	default:
+		ctx.Set(HeaderContentType, MIMETextPlainCharsetUTF8)
+		ctx.Ctx.Response.SetBodyString(e.Error())
+		ctx.Status(http.StatusInternalServerError)
+	}
 }
 
 type injection struct {
@@ -39,11 +41,11 @@ type injection struct {
 
 // ServerConfig is the bm server config model
 type ServerConfig struct {
-	Network      string        `dsn:"network"`
-	Addr         string        `dsn:"address"`
-	Timeout      time.Duration `dsn:"query.timeout"`
-	ReadTimeout  time.Duration `dsn:"query.readTimeout"`
-	WriteTimeout time.Duration `dsn:"query.writeTimeout"`
+	Network      string
+	Addr         string
+	Timeout      time.Duration
+	ReadTimeout  time.Duration
+	WriteTimeout time.Duration
 }
 
 // Engine service engine
@@ -53,15 +55,13 @@ type Engine struct {
 	lock sync.RWMutex
 	conf *ServerConfig
 
-	address       string
 	pcLock        sync.RWMutex
 	methodConfigs map[string]*MethodConfig
 
 	injections []injection
 
-	trees     methodTrees
-	server    *fasthttp.Server                  // store *http.Server
-	metastore map[string]map[string]interface{} // metastore is the path as key and the metadata of this path as value, it export via /metadata
+	trees  methodTrees
+	server *fasthttp.Server
 
 	// If enabled, the url.RawPath will be used to find parameters.
 	UseRawPath bool
@@ -83,8 +83,57 @@ type Engine struct {
 	allNoMethod []HandlerFunc
 	noRoute     []HandlerFunc
 	noMethod    []HandlerFunc
+	DebugMode   bool
 
 	pool sync.Pool
+
+	errorHandler func(ctx *Context, err error)
+}
+
+// NewServer returns a new blank Engine instance without any middleware attached.
+func NewServer() *Engine {
+	conf := defaultServerConfig()
+	engine := &Engine{
+		RouterGroup: RouterGroup{
+			Handlers: nil,
+			basePath: "/",
+			root:     true,
+		},
+		conf:                   conf,
+		trees:                  make(methodTrees, 0, 9),
+		methodConfigs:          make(map[string]*MethodConfig),
+		HandleMethodNotAllowed: true,
+		injections:             make([]injection, 0),
+		DebugMode:              false,
+	}
+	if err := engine.SetConfig(conf); err != nil {
+		panic(err)
+	}
+	engine.pool.New = func() interface{} {
+		return engine.newContext()
+	}
+	engine.RouterGroup.engine = engine
+	engine.NoRoute(func(c *Context) error {
+		c.Bytes(404, MIMETextHTML, default404Body)
+		c.Abort()
+		return nil
+	})
+	engine.NoMethod(func(c *Context) error {
+		c.Bytes(405, MIMETextHTML, default405Body)
+		c.Abort()
+		return nil
+	})
+	return engine
+}
+
+// defaultServerConfig return default server config
+func defaultServerConfig() *ServerConfig {
+	return &ServerConfig{
+		ReadTimeout:  1 * time.Second,
+		WriteTimeout: 1 * time.Second,
+		Timeout:      1 * time.Second,
+		Addr:         "127.0.0.1:8888",
+	}
 }
 
 // SetMethodConfig is used to set config on specified path
@@ -92,6 +141,11 @@ func (engine *Engine) SetMethodConfig(path string, mc *MethodConfig) {
 	engine.pcLock.Lock()
 	engine.methodConfigs[path] = mc
 	engine.pcLock.Unlock()
+}
+
+// SetDebugMode  set debug mode will log engine info
+func (engine *Engine) SetDebugMode() {
+	engine.DebugMode = true
 }
 
 func (engine *Engine) addRoute(method, path string, handlers ...HandlerFunc) {
@@ -104,21 +158,20 @@ func (engine *Engine) addRoute(method, path string, handlers ...HandlerFunc) {
 	if len(handlers) == 0 {
 		panic("[zouwu Engine]: there must be at least one handler")
 	}
-	if _, ok := engine.metastore[path]; !ok {
-		engine.metastore[path] = make(map[string]interface{})
-	}
-	engine.metastore[path]["method"] = method
 	root := engine.trees.get(method)
 	if root == nil {
 		root = new(node)
 		engine.trees = append(engine.trees, methodTree{method: method, root: root})
 	}
 
-	prelude := func(c *Context) {
+	prelude := func(c *Context) error {
 		c.method = method
 		c.RoutePath = path
+		return nil
 	}
-	fmt.Printf("add method %s path: %s\n", method, path)
+	if engine.DebugMode {
+		log.Infof("[zouwu engine]add method %s path: %s\n", method, path)
+	}
 	handlers = append([]HandlerFunc{prelude}, handlers...)
 	root.addRoute(path, handlers)
 }
@@ -133,7 +186,7 @@ func (engine *Engine) Start() error {
 	conf := engine.conf
 	l, err := net.Listen(conf.Network, conf.Addr)
 	if err != nil {
-		return errors.Wrapf(err, "[zouwu Engine]: listen tcp: %s", conf.Addr)
+		panic(errors.Wrapf(err, "[zouwu Engine]: listen tcp: %s", conf.Addr))
 	}
 
 	log.Infof("[zouwu Engine]: start http listen addr: %s", l.Addr().String())
@@ -151,23 +204,32 @@ func (engine *Engine) Start() error {
 	return nil
 }
 
-func (engine *Engine) handler(rctx *fasthttp.RequestCtx) {
-	fmt.Println(rctx)
+// AcquireCtx get context from pool and transform fasthttp.RequestCtx to zouwu.Context
+func (engine *Engine) AcquireCtx(rctx *fasthttp.RequestCtx) *Context {
 	ctx := engine.pool.Get().(*Context)
 	ctx.reset()
 	ctx.engine = engine
 	ctx.Ctx = rctx
+	return ctx
+}
+
+// ReleaseCtx reset context and put back pool
+func (engine *Engine) ReleaseCtx(ctx *Context) {
+	ctx.reset()
+	engine.pool.Put(ctx)
+}
+
+func (engine *Engine) handler(rctx *fasthttp.RequestCtx) {
+	ctx := engine.AcquireCtx(rctx)
 	engine.prepareHanlder(ctx)
 	ctx.Next()
-	engine.pool.Put(ctx)
+	engine.ReleaseCtx(ctx)
 }
 
 func (engine *Engine) prepareHanlder(ctx *Context) {
 	method := string(ctx.Ctx.Method())
 	rPath := string(ctx.Ctx.Request.URI().Path())
 	t := engine.trees
-	fmt.Println(t)
-	fmt.Println(rPath)
 	for i, tl := 0, len(t); i < tl; i++ {
 		if t[i].method != method {
 			continue
@@ -194,7 +256,7 @@ func (engine *Engine) prepareHanlder(ctx *Context) {
 			}
 		}
 	}
-	engine.Handlers = engine.allNoRoute
+	ctx.handlers = engine.allNoRoute
 }
 
 // RunServer will serve and start listening HTTP requests by given server and listener.
@@ -211,48 +273,8 @@ func (engine *Engine) RunServer(server *fasthttp.Server, l net.Listener) (err er
 
 // Run will run server with address
 func (engine *Engine) Run(address string) error {
-	engine.SetConfig(
-		&ServerConfig{
-			Addr:         address,
-			Timeout:      5 * time.Second,
-			WriteTimeout: 5 * time.Second,
-			ReadTimeout:  5 * time.Second,
-		},
-	)
+	engine.conf.Addr = address
 	return engine.Start()
-}
-
-// NewServer returns a new blank Engine instance without any middleware attached.
-func NewServer(conf *ServerConfig) *Engine {
-	engine := &Engine{
-		RouterGroup: RouterGroup{
-			Handlers: nil,
-			basePath: "/",
-			root:     true,
-		},
-		address:                conf.Addr,
-		trees:                  make(methodTrees, 0, 9),
-		metastore:              make(map[string]map[string]interface{}),
-		methodConfigs:          make(map[string]*MethodConfig),
-		HandleMethodNotAllowed: true,
-		injections:             make([]injection, 0),
-	}
-	if err := engine.SetConfig(conf); err != nil {
-		panic(err)
-	}
-	engine.pool.New = func() interface{} {
-		return engine.newContext()
-	}
-	engine.RouterGroup.engine = engine
-	engine.NoRoute(func(c *Context) {
-		c.Bytes(404, MIMETextHTML, default404Body)
-		c.Abort()
-	})
-	engine.NoMethod(func(c *Context) {
-		c.Bytes(405, MIMETextHTML, default405Body)
-		c.Abort()
-	})
-	return engine
 }
 
 //newContext for sync.pool
