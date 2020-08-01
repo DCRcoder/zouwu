@@ -41,14 +41,6 @@ func (group *RouterGroup) returnObj() IRoutes {
 
 // Use adds middleware to the group, see example code in doc.
 func (group *RouterGroup) Use(middleware ...HandlerFunc) IRoutes {
-	for _, m := range middleware {
-		group.Handlers = append(group.Handlers, m)
-	}
-	return group.returnObj()
-}
-
-// UseFunc adds middleware to the group, see example code in doc.
-func (group *RouterGroup) UseFunc(middleware ...HandlerFunc) IRoutes {
 	group.Handlers = append(group.Handlers, middleware...)
 	return group.returnObj()
 }
@@ -99,25 +91,12 @@ func (group *RouterGroup) BasePath() string {
 
 func (group *RouterGroup) handle(httpMethod, relativePath string, handlers ...HandlerFunc) IRoutes {
 	absolutePath := group.calculateAbsolutePath(relativePath)
-	injections := group.injections(relativePath)
-	handlers = group.combineHandlers(injections, handlers)
+	handlers = group.combineHandlers(handlers)
 	group.engine.addRoute(httpMethod, absolutePath, handlers...)
 	if group.baseConfig != nil {
 		group.engine.SetMethodConfig(absolutePath, group.baseConfig)
 	}
 	return group.returnObj()
-}
-
-// injections is
-func (group *RouterGroup) injections(relativePath string) []HandlerFunc {
-	absPath := group.calculateAbsolutePath(relativePath)
-	for _, injection := range group.engine.injections {
-		if !injection.pattern.MatchString(absPath) {
-			continue
-		}
-		return injection.handlers
-	}
-	return nil
 }
 
 // Handle registers a new request handle and middleware with the given path and method.

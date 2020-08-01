@@ -3,7 +3,6 @@ package zouwu
 import (
 	"net"
 	"net/http"
-	"regexp"
 	"sync"
 	"time"
 
@@ -34,11 +33,6 @@ var defaultErrorHandler = func(ctx *Context, err error) {
 	}
 }
 
-type injection struct {
-	pattern  *regexp.Regexp
-	handlers []HandlerFunc
-}
-
 // ServerConfig is the bm server config model
 type ServerConfig struct {
 	Network      string
@@ -57,8 +51,6 @@ type Engine struct {
 
 	pcLock        sync.RWMutex
 	methodConfigs map[string]*MethodConfig
-
-	injections []injection
 
 	trees  methodTrees
 	server *fasthttp.Server
@@ -103,7 +95,6 @@ func NewServer() *Engine {
 		trees:                  make(methodTrees, 0, 9),
 		methodConfigs:          make(map[string]*MethodConfig),
 		HandleMethodNotAllowed: true,
-		injections:             make([]injection, 0),
 		DebugMode:              false,
 	}
 	if err := engine.SetConfig(conf); err != nil {
@@ -315,4 +306,14 @@ func (engine *Engine) rebuild404Handlers() {
 
 func (engine *Engine) rebuild405Handlers() {
 	engine.allNoMethod = engine.combineHandlers(engine.noMethod)
+}
+
+// Use attaches a global middleware to the router. ie. the middleware attached though Use() will be
+// included in the handlers chain for every single request. Even 404, 405, static files...
+// For example, this is the right place for a logger or error management middleware.
+func (engine *Engine) Use(middleware ...HandlerFunc) IRoutes {
+	engine.RouterGroup.Use(middleware...)
+	engine.rebuild404Handlers()
+	engine.rebuild405Handlers()
+	return engine
 }
