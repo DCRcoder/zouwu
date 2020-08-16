@@ -402,6 +402,11 @@ func (c *Context) GetQuery(key string) (string, bool) {
 	return "", false
 }
 
+// GetRequestBody return request body
+func (c *Context) GetRequestBody() []byte {
+	return c.Ctx.PostBody()
+}
+
 // Status sets the HTTP response code.
 func (c *Context) Status(code int) {
 	c.Ctx.SetStatusCode(code)
