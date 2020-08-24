@@ -118,7 +118,7 @@ func NewServer() *Engine {
 		c.Abort()
 		return nil
 	})
-	engine.logger = NewFlogger()
+	engine.logger = NewFlogger(LogInfo)
 	return engine
 }
 
@@ -143,6 +143,11 @@ func (engine *Engine) SetMethodConfig(path string, mc *MethodConfig) {
 func (engine *Engine) SetDebugMode() {
 	engine.DebugMode = true
 	engine.logger.SetLogLevel(LogDebug)
+}
+
+// SetLoggerLevel set logger leve
+func (engine *Engine) SetLoggerLevel(level LogLevel) {
+	engine.SetLoggerLevel(level)
 }
 
 // SetLogger set engine logger
