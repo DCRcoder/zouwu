@@ -407,6 +407,15 @@ func (c *Context) GetRequestBody() []byte {
 	return c.Ctx.PostBody()
 }
 
+// GetJSONBody return request body as json
+func (c *Context) GetJSONBody(dest interface{}) error {
+	err := json.Unmarshal(c.GetRequestBody(), dest)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 // Status sets the HTTP response code.
 func (c *Context) Status(code int) {
 	c.Ctx.SetStatusCode(code)
