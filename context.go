@@ -449,3 +449,31 @@ func (c *Context) Bytes(code int, contentType string, data []byte) {
 	c.Ctx.Response.SetBodyRaw(data)
 	c.Status(code)
 }
+
+/************************************/
+/************ context.Context ************/
+/************************************/
+
+// Deadline do nothing
+func (c *Context) Deadline() (deadline time.Time, ok bool) {
+	return
+}
+
+// Done do nothing
+func (c *Context) Done() <-chan struct{} {
+	return nil
+}
+
+// Err return context error
+func (c *Context) Err() error {
+	return c.err
+}
+
+// Value try get value from key
+func (c *Context) Value(key interface{}) interface{} {
+	if keyStr, ok := key.(string); ok {
+		val, _ := c.Get(keyStr)
+		return val
+	}
+	return nil
+}

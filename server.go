@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ngaut/log"
 	"github.com/pkg/errors"
 	"github.com/valyala/fasthttp"
 )
@@ -83,6 +82,8 @@ type Engine struct {
 	pool sync.Pool
 
 	errorHandler ErrHandler
+
+	logger Logger
 }
 
 // NewServer returns a new blank Engine instance without any middleware attached.
@@ -117,6 +118,7 @@ func NewServer() *Engine {
 		c.Abort()
 		return nil
 	})
+	engine.logger = NewFlogger()
 	return engine
 }
 
@@ -140,6 +142,12 @@ func (engine *Engine) SetMethodConfig(path string, mc *MethodConfig) {
 // SetDebugMode  set debug mode will log engine info
 func (engine *Engine) SetDebugMode() {
 	engine.DebugMode = true
+	engine.logger.SetLogLevel(LogDebug)
+}
+
+// SetLogger set engine logger
+func (engine *Engine) SetLogger(logger Logger) {
+	engine.logger = logger
 }
 
 func (engine *Engine) addRoute(method, path string, handlers ...HandlerFunc) {
@@ -163,9 +171,7 @@ func (engine *Engine) addRoute(method, path string, handlers ...HandlerFunc) {
 		c.RoutePath = path
 		return nil
 	}
-	if engine.DebugMode {
-		log.Infof("[zouwu engine]add method %s path: %s\n", method, path)
-	}
+	engine.logger.Debugf("[zouwu engine]add method %s path: %s\n", method, path)
 	handlers = append([]HandlerFunc{prelude}, handlers...)
 	root.addRoute(path, handlers)
 }
@@ -183,14 +189,14 @@ func (engine *Engine) Start() error {
 		panic(errors.Wrapf(err, "[zouwu Engine]: listen tcp: %s", conf.Addr))
 	}
 
-	log.Infof("[zouwu Engine]: start http listen addr: %s", l.Addr().String())
+	engine.logger.Debugf("[zouwu Engine]: start http listen addr: %s", l.Addr().String())
 	server := &fasthttp.Server{
 		ReadTimeout:  time.Duration(conf.ReadTimeout),
 		WriteTimeout: time.Duration(conf.WriteTimeout),
 	}
 	if err := engine.RunServer(server, l); err != nil {
 		if errors.Cause(err) == http.ErrServerClosed {
-			log.Info("[zouwu Engine]: server closed")
+			engine.logger.Debugf("[zouwu Engine]: server closed")
 			return nil
 		}
 		panic(errors.Wrapf(err, "[zouwu Engine]: engine.ListenServer(%+v, %+v)", server, l))
@@ -215,12 +221,12 @@ func (engine *Engine) ReleaseCtx(ctx *Context) {
 
 func (engine *Engine) handler(rctx *fasthttp.RequestCtx) {
 	ctx := engine.AcquireCtx(rctx)
-	engine.prepareHanlder(ctx)
+	engine.prepareHandler(ctx)
 	ctx.Next()
 	engine.ReleaseCtx(ctx)
 }
 
-func (engine *Engine) prepareHanlder(ctx *Context) {
+func (engine *Engine) prepareHandler(ctx *Context) {
 	method := string(ctx.Ctx.Method())
 	rPath := string(ctx.Ctx.Request.URI().Path())
 	t := engine.trees
