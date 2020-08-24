@@ -189,14 +189,14 @@ func (engine *Engine) Start() error {
 		panic(errors.Wrapf(err, "[zouwu Engine]: listen tcp: %s", conf.Addr))
 	}
 
-	engine.logger.Debugf("[zouwu Engine]: start http listen addr: %s", l.Addr().String())
+	engine.logger.Infof("[zouwu Engine]: start http listen addr: %s", l.Addr().String())
 	server := &fasthttp.Server{
 		ReadTimeout:  time.Duration(conf.ReadTimeout),
 		WriteTimeout: time.Duration(conf.WriteTimeout),
 	}
 	if err := engine.RunServer(server, l); err != nil {
 		if errors.Cause(err) == http.ErrServerClosed {
-			engine.logger.Debugf("[zouwu Engine]: server closed")
+			engine.logger.Infof("[zouwu Engine]: server closed")
 			return nil
 		}
 		panic(errors.Wrapf(err, "[zouwu Engine]: engine.ListenServer(%+v, %+v)", server, l))
