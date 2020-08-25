@@ -22,11 +22,11 @@ type HandlerFunc func(ctx *Context) error
 var defaultErrorHandler = func(ctx *Context, err error) {
 	switch e := err.(type) {
 	case *Error:
-		ctx.Set(HeaderContentType, MIMETextPlainCharsetUTF8)
+		ctx.Ctx.Response.Header.SetContentType(MIMETextPlainCharsetUTF8)
 		ctx.Ctx.Response.SetBodyString(e.Error())
 		ctx.Status(e.Code)
 	default:
-		ctx.Set(HeaderContentType, MIMETextPlainCharsetUTF8)
+		ctx.Ctx.Response.Header.SetContentType(MIMETextPlainCharsetUTF8)
 		ctx.Ctx.Response.SetBodyString(e.Error())
 		ctx.Status(http.StatusInternalServerError)
 	}
@@ -332,7 +332,7 @@ func (engine *Engine) Use(middleware ...HandlerFunc) IRoutes {
 	return engine
 }
 
-// SetErrHanlder set customer ErrHandler
-func (engine *Engine) SetErrHanlder(f ErrHandler) {
+// SetErrHandler set customer ErrHandler
+func (engine *Engine) SetErrHandler(f ErrHandler) {
 	engine.errorHandler = f
 }
