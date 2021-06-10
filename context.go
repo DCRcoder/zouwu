@@ -21,6 +21,11 @@ var json = jsoniter.Config{
 	UseNumber:              true, // 避免 float 转换时精度丢失
 }.Froze()
 
+// JSONValidator help you to validate the incoming data.
+type JSONValidator interface {
+	Validate() error
+}
+
 // Context 定义
 type Context struct {
 	Ctx *fasthttp.RequestCtx
@@ -412,6 +417,11 @@ func (c *Context) GetJSONBody(dest interface{}) error {
 	err := json.Unmarshal(c.GetRequestBody(), dest)
 	if err != nil {
 		return err
+	}
+	if validate, ok := dest.(JSONValidator); ok {
+		if err = validate.Validate(); err != nil {
+			return err
+		}
 	}
 	return nil
 }
